@@ -524,11 +524,46 @@ class VCard
         $string .= "VERSION:3.0\r\n";
         $string .= "REV:" . date("Y-m-d") . "T" . date("H:i:s") . "Z\r\n";
 
-        // loop all properties
+        // Get all properties
         $properties = $this->getProperties();
+
+        // Separate URL and TEL properties
+        $specialProperties = array_filter($properties, function($prop) {
+            return strpos($prop['key'], 'URL') === 0 || strpos($prop['key'], 'TEL') === 0;
+        });
+
+        // Remove URL and TEL properties from main properties array
+        $properties = array_filter($properties, function($prop) {
+            return strpos($prop['key'], 'URL') !== 0 && strpos($prop['key'], 'TEL') !== 0;
+        });
+
+        // Handle regular properties
         foreach ($properties as $property) {
             // add to string
-            $string .= $this->fold($property['key'] . ':' . $this->escape($property['value'])) . "\r\n";
+            $string .= $this->fold($property['key'] . ':' . $this->escape($property['value']) . "\r\n");
+        }
+
+        // Handle URL and TEL properties
+        $itemCount = 1;
+        foreach ($specialProperties as $property) {
+            $label = '';
+            $type = strpos($property['key'], 'URL') === 0 ? 'URL' : 'TEL';
+
+            // Extract label if exists (after semicolon)
+            if (strpos($property['key'], ';') !== false) {
+                $parts = explode(';', $property['key']);
+                $label = end($parts);
+            }
+
+            // Add property
+            $string .= $this->fold("item" . $itemCount . "." . $type . ";type=pref:" . $this->escape($property['value']) . "\r\n");
+
+            // Add label if exists
+            if ($label) {
+                $string .= $this->fold("item" . $itemCount . ".X-ABLabel:" . $this->escape($label) . "\r\n");
+            }
+
+            $itemCount++;
         }
 
         // add to string
